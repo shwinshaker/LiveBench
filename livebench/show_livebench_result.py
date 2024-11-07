@@ -27,7 +27,7 @@ def display_result_single(args, update_names=True):
 
     if args.input_file is None:
         input_files = (
-            glob.glob(f"data/{args.bench_name}/**/model_judgment/ground_truth_judgment.jsonl", recursive=True)
+            glob.glob(f"{args.input_path}/{args.bench_name}/**/model_judgment/ground_truth_judgment.jsonl", recursive=True)
         )
     else:
         input_files = args.input_file
@@ -105,7 +105,7 @@ def display_result_single(args, update_names=True):
             df = df[df["model"] != model]
             #raise ValueError(f'Invalid result, missing judgments (and possibly completions) for {len(questions_all) - len(df_model)} questions for model {model}.')
 
-    df.to_csv('df_raw.csv')
+    df.to_csv(f'{args.input_path}/df_raw.csv')
 
     print("\n########## All Tasks ##########")
     df_1 = df[["model", "score", "task"]]
@@ -113,7 +113,7 @@ def display_result_single(args, update_names=True):
     df_1 = pd.pivot_table(df_1, index=['model'], values = "score", columns=["task"], aggfunc="sum")
     df_1 = df_1.round(3)
     print(df_1.sort_values(by="model")[:60])
-    df_1.to_csv('all_tasks.csv')
+    df_1.to_csv(f'{args.input_path}/all_tasks.csv')
 
     print("\n########## All Groups ##########")
     df_1 = df[["model", "score", "category", "task"]]
@@ -126,19 +126,20 @@ def display_result_single(args, update_names=True):
     df_1 = df_1.sort_values(by="average", ascending=False)
     df_1 = df_1.round(1)
     print(df_1[:60])
-    df_1.to_csv('all_groups.csv')
+    df_1.to_csv(f'{args.input_path}/all_groups.csv')
 
 
     for column in df_1.columns[1:]:
         max_value = df_1[column].max()
         df_1[column] = df_1[column].apply(lambda x: f'\\textbf{{{x}}}' if x == max_value else x)
-    df_1.to_csv('latex_table.csv', sep='&', lineterminator='\\\\\n', quoting=3,escapechar=" ")
+    df_1.to_csv(f'{args.input_path}/latex_table.csv', sep='&', lineterminator='\\\\\n', quoting=3,escapechar=" ")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--bench-name", type=str, default="live_bench")
     parser.add_argument("--input-file", type=str)
+    parser.add_argument("--input-path", type=str)
     parser.add_argument("--baseline-model", type=str, default="gpt-3.5-turbo")
     parser.add_argument(
         "--questions-equivalent", 

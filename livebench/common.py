@@ -203,8 +203,8 @@ def make_match_single(
             )
     return matches
 
-def chat_completion_megatron_api(model, conv, temperature, max_tokens, api_dict):
-    output = API_ERROR_OUTPUT
+def chat_completion_megatron_api(model, convs, temperature, max_tokens, api_dict):
+    outputs = [API_ERROR_OUTPUT for _ in convs]
     for _ in range(API_MAX_RETRY):
         try:
             batch_args = [(
@@ -216,21 +216,21 @@ def chat_completion_megatron_api(model, conv, temperature, max_tokens, api_dict)
                     "do_sample": False,
                     "temperature": temperature,
                 }
-            )]
+            ) for conv in convs]
             print(batch_args)
             response = requests.post(
                 api_dict["api_base"],
                 json={"args": batch_args},
                 timeout=300,
             )
-            output = response.json()["text"][0]
-            print(output)
+            # output = response.json()["text"][0]
+            outputs = response.json()["text"]
             break
         except Exception as e:
             print(type(e), e)
             time.sleep(API_RETRY_SLEEP)
 
-    return output
+    return outputs
 
 def chat_completion_openai(model, conv, temperature, max_tokens, api_dict=None):
     if api_dict is not None:

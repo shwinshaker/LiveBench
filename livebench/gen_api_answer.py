@@ -51,95 +51,115 @@ from livebench.model.model_adapter import (
 )
 
 def get_answer(
-    question: dict, model: str, num_choices: int, max_tokens: int, answer_file: str, api_dict: dict=None
+    questions: dict, model: str, num_choices: int, max_tokens: int, answer_file: str, api_dict: dict=None
 ):
     assert (
-        args.force_temperature is not None and "required_temperature" in question.keys()
+        args.force_temperature is not None and "required_temperature" in questions[0].keys()
     ) == False
     if args.force_temperature is not None:
         temperature = args.force_temperature
-    elif "required_temperature" in question.keys():
-        temperature = question["required_temperature"]
+    elif "required_temperature" in questions[0].keys():
+        temperature = questions[0]["required_temperature"]
     else:
         temperature = 0.0
 
     choices = []
     chat_state = None  # for palm-2 model
     for i in range(num_choices):
-        conv = get_conversation_template(model)
+        convs = [get_conversation_template(model) for _ in questions]
 
-        questions = []
-        turns = []
-        assert(len(question["turns"]) == 1), "Multiple turns not supported yet for megatron api."
-        for j in range(len(question["turns"])):
-            conv.append_message(conv.roles[0], question["turns"][j])
+        # save_questions = []
+        # turns = []
+        assert(len(questions[0]["turns"]) == 1), "Multiple turns not supported yet for megatron api."
+        # for j in range(len(question["turns"])):
+        for conv, question in zip(convs, questions):
+            conv.append_message(conv.roles[0], question["turns"][0])
             conv.append_message(conv.roles[1], None)
 
-            if model in MEGATRON_API_MODEL_LIST:
-                output = chat_completion_megatron_api(model, conv, temperature, max_tokens, api_dict=api_dict)
-            elif api_dict is not None:
-                output = chat_completion_openai(model, conv, temperature, max_tokens, api_dict=api_dict)
-            elif model in ANTHROPIC_MODEL_LIST:
-                output = chat_completion_anthropic(model, conv, temperature, max_tokens)
-            elif model == "palm-2-chat-bison-001":
-                chat_state, output = chat_completion_palm(
-                    chat_state, model, conv, temperature, max_tokens
-                )
-            elif model in VERTEX_MODEL_LIST:
-                output = chat_completion_vertex(model, conv, temperature, max_tokens)
-            elif model in GOOGLE_GENERATIVEAI_MODEL_LIST:
-                output = chat_completion_google_generativeai(model, conv, temperature, max_tokens)
-            elif model in MISTRAL_MODEL_LIST:
-                output = chat_completion_mistral(model, conv, temperature, max_tokens)
-            elif model in COHERE_MODEL_LIST:
-                output = chat_completion_cohere(model, conv, temperature, max_tokens)
-            elif model in DEEPSEEK_MODEL_LIST:
-                output = chat_completion_deepseek(model, conv, temperature, max_tokens)
-            elif model in TOGETHER_MODEL_LIST:
-                output = chat_completion_together(model, conv, temperature, max_tokens)
-            elif model in NVIDIA_MODEL_LIST:
-                output = chat_completion_nvidia(model, conv, temperature, max_tokens)
-            elif model in INFERENCE_OPENAI_MODEL_LIST:
-                output = chat_completion_inference_openai(model, conv, temperature, max_tokens)
-            elif model in OPENROUTER_MODEL_LIST:
-                output = chat_completion_openrouter(model, conv, temperature, max_tokens)
-            else:
-                output = chat_completion_openai(model, conv, temperature, max_tokens)
+        if model in MEGATRON_API_MODEL_LIST:
+            outputs = chat_completion_megatron_api(model, convs, temperature, max_tokens, api_dict=api_dict)
+        else:
+            raise NotImplementedError("Model not supported yet.")
+        # elif api_dict is not None:
+        #     output = chat_completion_openai(model, conv, temperature, max_tokens, api_dict=api_dict)
+        # elif model in ANTHROPIC_MODEL_LIST:
+        #     output = chat_completion_anthropic(model, conv, temperature, max_tokens)
+        # elif model == "palm-2-chat-bison-001":
+        #     chat_state, output = chat_completion_palm(
+        #         chat_state, model, conv, temperature, max_tokens
+        #     )
+        # elif model in VERTEX_MODEL_LIST:
+        #     output = chat_completion_vertex(model, conv, temperature, max_tokens)
+        # elif model in GOOGLE_GENERATIVEAI_MODEL_LIST:
+        #     output = chat_completion_google_generativeai(model, conv, temperature, max_tokens)
+        # elif model in MISTRAL_MODEL_LIST:
+        #     output = chat_completion_mistral(model, conv, temperature, max_tokens)
+        # elif model in COHERE_MODEL_LIST:
+        #     output = chat_completion_cohere(model, conv, temperature, max_tokens)
+        # elif model in DEEPSEEK_MODEL_LIST:
+        #     output = chat_completion_deepseek(model, conv, temperature, max_tokens)
+        # elif model in TOGETHER_MODEL_LIST:
+        #     output = chat_completion_together(model, conv, temperature, max_tokens)
+        # elif model in NVIDIA_MODEL_LIST:
+        #     output = chat_completion_nvidia(model, conv, temperature, max_tokens)
+        # elif model in INFERENCE_OPENAI_MODEL_LIST:
+        #     output = chat_completion_inference_openai(model, conv, temperature, max_tokens)
+        # elif model in OPENROUTER_MODEL_LIST:
+        #     output = chat_completion_openrouter(model, conv, temperature, max_tokens)
+        # else:
+        #     output = chat_completion_openai(model, conv, temperature, max_tokens)
 
-            conv.update_last_message(output)
-            turns.append(output)
-            questions.append(question["turns"][j])
+        # conv.update_last_message(output)
+        # turns.append(output)
+        # save_questions.append([question["turns"][0] for question in questions])
 
-        choices.append({"index": i, "turns": turns, "questions": questions})
+        choices.append({"index": i, "turns": outputs, "questions": [question["turns"][0] for question in questions]})
 
     # Dump answers
-    ans = {
+    anss = [{
         "question_id": question["question_id"],
         "answer_id": shortuuid.uuid(),
         "model_id": model,
-        "choices": choices,
+        "choices": [{
+             "index": choice["index"],
+             "turns": [choice["turns"][j]],
+             "questions": [choice["questions"][j]],
+            } for choice in choices],
         "tstamp": time.time(),
-    }
+    } for j, question in enumerate(questions)]
 
     os.makedirs(os.path.dirname(answer_file), exist_ok=True)
     with open(answer_file, "a") as fout:
-        fout.write(json.dumps(ans) + "\n")
+        for ans in anss:
+            fout.write(json.dumps(ans) + "\n")
 
 
-def run_questions(parallel, questions, model, num_choices, max_tokens, answer_file, api_dict):
+def run_questions(parallel, questions, model, num_choices, max_tokens, answer_file, api_dict, batch_size=1):
     if parallel == 1:
-        for question in tqdm.tqdm(questions):
+        for i in tqdm.tqdm(range(0, len(questions), batch_size)):
+            question_batch = questions[i : i + batch_size]
             get_answer(
-                question,
+                question_batch,
                 model,
                 num_choices,
                 max_tokens,
                 answer_file,
                 api_dict=api_dict,
             )
+
+        # for question in tqdm.tqdm(questions):
+        #     get_answer(
+        #         question,
+        #         model,
+        #         num_choices,
+        #         max_tokens,
+        #         answer_file,
+        #         api_dict=api_dict,
+        #     )
         if len(questions) > 0:
             reorg_answer_file(answer_file)
     else:
+        raise NotImplementedError("Parallel processing not implemented yet.")
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = []
@@ -205,6 +225,9 @@ if __name__ == "__main__":
         "--parallel", type=int, default=1, help="The number of concurrent API calls."
     )
     parser.add_argument(
+        "--batch-size", type=int, default=1, help="The number of questions to process in a batch."
+    )
+    parser.add_argument(
         "--question-source", type=str, default="huggingface", help="The source of the questions. 'huggingface' will draw questions from huggingface. 'jsonl' will use local jsonl files to permit tweaking or writing custom questions."
     )
     parser.add_argument(
@@ -258,7 +281,8 @@ if __name__ == "__main__":
                     num_choices=args.num_choices,
                     max_tokens=args.max_tokens, 
                     answer_file=answer_file, 
-                    api_dict=api_dict
+                    api_dict=api_dict,
+                    batch_size=args.batch_size,
                 )
 
     elif args.question_source == "jsonl":
