@@ -40,7 +40,11 @@ def LCB_generation_process_results(question: dict, llm_answer: str) -> int:
         #     return 0
         # if llm_answer[:len(question['partial_solution'])] != question['partial_solution']:
         #     return 0
-        llm_answer = question['partial_solution'] + '\n' + llm_answer
+        # llm_answer = question['partial_solution'] + '\n' + llm_answer
+        if llm_answer[:len(question['partial_solution'])] == question['partial_solution']:
+            pass
+        else:
+            llm_answer = question['partial_solution'] + '\n' + llm_answer
 
     # code mostly from LiveCodeBench, with modifications.
     public_test_cases = json.loads(question['public_test_cases'])  # type: ignore

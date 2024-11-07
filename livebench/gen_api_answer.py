@@ -21,6 +21,7 @@ from livebench.common import (
     load_questions,
     load_questions_jsonl,
     chat_completion_openai,
+    chat_completion_megatron_api,
     chat_completion_anthropic,
     chat_completion_palm,
     chat_completion_google_generativeai,
@@ -36,6 +37,7 @@ from livebench.common import (
 )
 from livebench.model.model_adapter import (
     get_conversation_template, 
+    MEGATRON_API_MODEL_LIST,
     ANTHROPIC_MODEL_LIST,
     GOOGLE_GENERATIVEAI_MODEL_LIST, 
     VERTEX_MODEL_LIST,
@@ -66,12 +68,16 @@ def get_answer(
     for i in range(num_choices):
         conv = get_conversation_template(model)
 
+        questions = []
         turns = []
+        assert(len(question["turns"]) == 1), "Multiple turns not supported yet for megatron api."
         for j in range(len(question["turns"])):
             conv.append_message(conv.roles[0], question["turns"][j])
             conv.append_message(conv.roles[1], None)
 
-            if api_dict is not None:
+            if model in MEGATRON_API_MODEL_LIST:
+                output = chat_completion_megatron_api(model, conv, temperature, max_tokens, api_dict=api_dict)
+            elif api_dict is not None:
                 output = chat_completion_openai(model, conv, temperature, max_tokens, api_dict=api_dict)
             elif model in ANTHROPIC_MODEL_LIST:
                 output = chat_completion_anthropic(model, conv, temperature, max_tokens)
@@ -102,8 +108,9 @@ def get_answer(
 
             conv.update_last_message(output)
             turns.append(output)
+            questions.append(question["turns"][j])
 
-        choices.append({"index": i, "turns": turns})
+        choices.append({"index": i, "turns": turns, "questions": questions})
 
     # Dump answers
     ans = {
@@ -203,6 +210,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--livebench-release-option", type=str, default='2024-08-31', help="Livebench release to use. Provide a single date option, current options are {'2024-08-31' (august update), '2024-07-26' (july update), '2024-06-24' (original release)}. Will handle excluding deprecated questions for selected release."
     )
+    parser.add_argument(
+        "--output-path", type=str, default="data", help="The path to save the generated answers."
+    )
     args = parser.parse_args()
 
     valid_livebench_releases = set(['2024-07-26', '2024-06-24', '2024-08-31'])
@@ -236,7 +246,7 @@ if __name__ == "__main__":
                 ]
 
                 task_full_name = f"{LIVE_BENCH_DATA_SUPER_PATH}/{category_name}/{task_name}"
-                answer_file = f"data/{task_full_name}/model_answer/{args.model}.jsonl"
+                answer_file = f"{args.output_path}/{task_full_name}/model_answer/{args.model}.jsonl"
 
                 print(f"Questions from {task_full_name}")
                 print(f"Output to {answer_file}")
@@ -252,6 +262,7 @@ if __name__ == "__main__":
                 )
 
     elif args.question_source == "jsonl":
+        raise NotImplementedError("jsonl source not implemented yet.")
         list_of_question_files = []
         original_question_file = f"data/{args.bench_name}/question.jsonl"
         if os.path.exists(original_question_file):

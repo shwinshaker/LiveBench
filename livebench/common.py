@@ -15,6 +15,7 @@ import time
 from typing import Optional
 import openai
 import anthropic
+import requests
 
 # API setting constants
 API_MAX_RETRY = 12
@@ -202,6 +203,35 @@ def make_match_single(
             )
     return matches
 
+def chat_completion_megatron_api(model, conv, temperature, max_tokens, api_dict):
+    output = API_ERROR_OUTPUT
+    for _ in range(API_MAX_RETRY):
+        try:
+            batch_args = [(
+                conv.to_openai_api_messages()[1]['content'],
+                {
+                    "max_gen_toks": max_tokens,
+                    "until": ['r"\\Z"'],
+                    "until_type": "regex",
+                    "do_sample": False,
+                    "temperature": temperature,
+                }
+            )]
+            print(batch_args)
+            response = requests.post(
+                api_dict["api_base"],
+                json={"args": batch_args},
+                timeout=300,
+            )
+            output = response.json()["text"][0]
+            print(output)
+            break
+        except Exception as e:
+            print(type(e), e)
+            time.sleep(API_RETRY_SLEEP)
+
+    return output
+
 def chat_completion_openai(model, conv, temperature, max_tokens, api_dict=None):
     if api_dict is not None:
         openai.api_base = api_dict["api_base"]
@@ -210,6 +240,7 @@ def chat_completion_openai(model, conv, temperature, max_tokens, api_dict=None):
     for _ in range(API_MAX_RETRY):
         try:
             messages = conv.to_openai_api_messages()
+            print(messages)
             response = openai.ChatCompletion.create(
                 model=model,
                 messages=messages,
@@ -217,7 +248,9 @@ def chat_completion_openai(model, conv, temperature, max_tokens, api_dict=None):
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
+            print(response)
             output = response["choices"][0]["message"]["content"]
+            import pdb; pdb.set_trace()
             break
         except Exception as e:
             print(type(e), e)

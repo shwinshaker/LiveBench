@@ -51,6 +51,10 @@ peft_share_base_weights = (
     os.environ.get("PEFT_SHARE_BASE_WEIGHTS", "false").lower() == "true"
 )
 
+MEGATRON_API_MODEL_LIST = (
+    "megatron-lm",
+)
+
 ANTHROPIC_MODEL_LIST = (
     "claude-1",
     "claude-2",

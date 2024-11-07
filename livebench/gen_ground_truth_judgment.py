@@ -301,6 +301,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--livebench-release-option", type=str, default='2024-08-31', help="Livebench release to use. Provide a single date option, current options are {'2024-08-31' (august update), '2024-07-26' (july update), '2024-06-24' (original release)}. Will handle excluding deprecated questions for selected release."
     )
+    parser.add_argument(
+        "--output-path", type=str, default="data", help="The path to save the generated answers."
+    )
     args = parser.parse_args()
 
     valid_livebench_releases = set(['2024-07-26', '2024-06-24', '2024-08-31'])
@@ -328,9 +331,9 @@ if __name__ == "__main__":
 
 
                 task_full_name = f"{LIVE_BENCH_DATA_SUPER_PATH}/{category_name}/{task_name}"
-                output_file = f"data/{task_full_name}/model_judgment/ground_truth_judgment.jsonl"
+                output_file = f"{args.output_path}/{task_full_name}/model_judgment/ground_truth_judgment.jsonl"
 
-                answer_dir = f"data/{task_full_name}/model_answer/"
+                answer_dir = f"{args.output_path}/{task_full_name}/model_answer/"
 
                 gen_judgments(
                     parallel=args.parallel,
@@ -344,6 +347,7 @@ if __name__ == "__main__":
 
 
     elif args.question_source == "jsonl":
+        raise NotImplementedError("jsonl source not implemented yet.")
         list_of_question_files = []
         original_question_file = f"data/{args.bench_name}/question.jsonl"
         if os.path.exists(original_question_file):
