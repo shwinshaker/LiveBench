@@ -208,7 +208,9 @@ def chat_completion_megatron_api(model, convs, temperature, max_tokens, api_dict
     for _ in range(API_MAX_RETRY):
         try:
             batch_args = [(
-                conv.to_openai_api_messages()[1]['content'],
+                (conv.to_openai_api_messages()[0]['content'] + "\n\n" + # system
+                 conv.to_openai_api_messages()[1]['content']),  # user
+                # conv.to_openai_api_messages()[1]['content'],
                 {
                     "max_gen_toks": max_tokens,
                     "until": ['r"\\Z"'],
@@ -217,7 +219,8 @@ def chat_completion_megatron_api(model, convs, temperature, max_tokens, api_dict
                     "temperature": temperature,
                 }
             ) for conv in convs]
-            print(batch_args)
+            # import pdb; pdb.set_trace()
+            # print(batch_args)
             response = requests.post(
                 api_dict["api_base"],
                 json={"args": batch_args},
@@ -227,7 +230,7 @@ def chat_completion_megatron_api(model, convs, temperature, max_tokens, api_dict
             outputs = response.json()["text"]
             break
         except Exception as e:
-            print(type(e), e)
+            # print(type(e), e)
             time.sleep(API_RETRY_SLEEP)
 
     return outputs
